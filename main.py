@@ -12,6 +12,11 @@ from ui.settings_dialog import SettingsDialog
 async def main(page: ft.Page):
     telegram_service = None
     alerts_service = None
+    
+    # Store user settings in memory to avoid client_storage calls during callbacks
+    user_settings = {
+        "region": None
+    }
     page.title = "Varta AI"
     page.theme_mode = ft.ThemeMode.DARK
     page.padding = 20
@@ -24,8 +29,15 @@ async def main(page: ft.Page):
     def on_dev_mode_change(enabled):
         layout.toggle_console(visible=enabled)
         layout.log("Developer Mode " + ("Enabled" if enabled else "Disabled"))
+        
+    def on_region_changed(region):
+        user_settings["region"] = region
+        if region:
+             layout.log(f"Регіон змінено на: {region}")
+        else:
+             layout.log("Регіон скинуто")
 
-    settings_dialog = SettingsDialog(page, on_dev_mode_change)
+    settings_dialog = SettingsDialog(page, on_dev_mode_change, on_region_changed)
 
     # --- Info Tooltip (Overlay) ---
     info_tooltip = ft.Container(
@@ -169,8 +181,54 @@ async def main(page: ft.Page):
     )
 
     # Callback to update UI from Telegram
-    def on_telegram_message(title, text, footer, time, bg_color):
-        layout.add_news(title, text, footer, time, bg_color)
+    # Callback to update UI from Telegram
+    def on_telegram_message(summary, original_text, level, regions, time, footer):
+        # Get User Region from cached settings (AVOIDS TIMEOUT)
+        user_region = user_settings.get("region")
+        
+        is_region_match = False
+        if user_region and regions:
+            # Check if regions is a list or string, theoretically list per new JSON
+            if isinstance(regions, list):
+                if user_region in regions:
+                    is_region_match = True
+            elif isinstance(regions, str) and regions != "none":
+                if user_region == regions:
+                    is_region_match = True
+
+        # Default Mapping
+        title = "ПОВІДОМЛЕННЯ"
+        bg_color = ft.Colors.BLUE_GREY_700
+        
+        # LOGIC:
+        # Red Card IF: (Region Match AND Level != LOW) OR (Level == CRITICAL)
+        
+        is_danger = False
+        if level == "CRITICAL":
+            is_danger = True
+        elif is_region_match and level != "LOW":
+            is_danger = True
+            
+        if is_danger:
+            title = "ВЕЛИКА НЕБЕЗПЕКА"
+            bg_color = ft.Colors.RED_700
+        else:
+            # Standard Colors based on Level
+            if level == "LOW":
+                title = "ІНФОРМАЦІЯ"
+                bg_color = ft.Colors.GREEN_700
+            elif level == "MEDIUM":
+                title = "УВАГА"
+                bg_color = ft.Colors.YELLOW_700
+            elif level == "HIGH":
+                title = "НЕБЕЗПЕКА"
+                bg_color = ft.Colors.ORANGE_700
+            else:
+                title = "ПОВІДОМЛЕННЯ"
+                bg_color = ft.Colors.BLUE_GREY_700
+
+        # Add News Card
+        layout.add_news(title, summary, footer, time, bg_color, original_text=original_text)
         
     def logger(msg):
         layout.log(msg)

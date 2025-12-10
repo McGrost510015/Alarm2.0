@@ -124,40 +124,35 @@ class TelegramService:
             self.log("Status is ignore. Skipping.")
             return
         
-        # 3. Determine Level and Region
+        # 3. Determine Level, Region, and Original Text
         level = data.get("level", "LOW")
-        # region_mentioned = data.get("region_mentioned", False) # Ignored for UI styling as per request
+        regions = data.get("regions", []) # List of strings
+        original_text = data.get("original_text", "")
         summary = data.get("summary", "")
         
-        # self.log(f"Parsed: Status={status}, Level={level}, Region={region_mentioned}") # Optional logging
+        # We now pass 'level', 'regions', 'summary', 'original_text' to the UI callback
+        # The logic for determining color/title will move to main.py because it needs access to user settings (client_storage)
         
-        title = "ІНФОРМАЦІЯ"
-        bg_color = ft.Colors.GREEN_700
-        
-        # Logic: Solely based on level
-        if level == "LOW":
-            title = "ІНФОРМАЦІЯ"
-            bg_color = ft.Colors.GREEN_700
-        elif level == "MEDIUM":
-            title = "УВАГА"
-            bg_color = ft.Colors.YELLOW_700 
-        elif level == "HIGH":
-            title = "НЕБЕЗПЕКА"
-            bg_color = ft.Colors.ORANGE_700
-        elif level == "CRITICAL":
-            title = "ВЕЛИКА НЕБЕЗПЕКА"
-            bg_color = ft.Colors.RED_700
-        else:
-            # Fallback
-            title = "ПОВІДОМЛЕННЯ"
-            bg_color = ft.Colors.BLUE_GREY_700
-
         formatted_time = date.strftime("%H:%M:%S")
         footer_text = date.strftime("%d.%m.%Y")
         
         # Callback to UI
         if self.update_callback:
-            self.update_callback(title, summary, footer_text, formatted_time, bg_color)
+            # New Signature: callback(title, summary, footer, time, bg_color, original_text, level, regions)
+            # Wait, main.py expects (title, text, footer, time, bg_color) currently.
+            # I should update main.py FIRST or pass a dict/object.
+            # Or just pass raw data and let main.py decide title/color.
+            
+            # Let's change the callback contract to:
+            # on_message(data_dict) or on_message(summary, original_text, level, regions, time_str, date_str)
+            
+            # To minimize breakage during refactor, I will change main.py's handler first?
+            # No, I can't change main.py signature in the same atomic step easily if I strictly follow file-by-file.
+            # But I can modify the arguments passed here.
+            
+            # Let's pass: 
+            # callback(summary, original_text, level, regions, formatted_time, footer_text)
+            self.update_callback(summary, original_text, level, regions, formatted_time, footer_text)
 
     async def connect(self):
         await self.client.start()

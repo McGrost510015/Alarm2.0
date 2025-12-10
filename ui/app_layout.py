@@ -46,12 +46,12 @@ class AppLayout(ft.Row):
     def update_map(self, states):
         self.map.update_alerts(states)
 
-    def add_news(self, title, text, footer, time, bg_color, save=True, animate=True):
+    def add_news(self, title, text, footer, time, bg_color, original_text=None, save=True, animate=True):
         # Add new card to the top
         # For new items (save=True), we animate. For history (usually save=False), we can skip animation or fast forward.
         # But user wants smooth appearance for NEW news.
         
-        card = NewsCard(title, text, footer, time, bg_color, animate_entrance=animate)
+        card = NewsCard(title, text, footer, time, bg_color, original_text=original_text, animate_entrance=animate)
         self.news_list_container.controls.insert(0, card)
         
         # Update page to render the card in its initial (offset/transparent) state
@@ -65,7 +65,8 @@ class AppLayout(ft.Row):
                 "text": text,
                 "footer": footer,
                 "time": time,
-                "bg_color": bg_color
+                "bg_color": bg_color,
+                "original_text": original_text
             })
 
     def save_news_item(self, item):
@@ -107,6 +108,7 @@ class AppLayout(ft.Row):
                     item.get("footer"),
                     item.get("time"),
                     item.get("bg_color"),
+                    original_text=item.get("original_text"),
                     save=False,
                     animate=False
                 )
