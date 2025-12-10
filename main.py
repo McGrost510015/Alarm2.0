@@ -2,6 +2,7 @@ import flet as ft
 import asyncio
 from ui.app_layout import AppLayout
 from service.telegram_service import TelegramService
+from service.alerts_service import AlertsService
 import os
 from datetime import datetime
 import config
@@ -100,7 +101,6 @@ async def main(page: ft.Page):
         return
 
     # Initialize Telegram Service
-    # Note: running telethon loop inside Flet's async loop
     if config.API_HASH and config.API_HASH != 'your_api_hash':
         # Temporarily update config with integer ID for this session
         config.API_ID = real_api_id
@@ -108,8 +108,21 @@ async def main(page: ft.Page):
         telegram_service = TelegramService(on_telegram_message, logger=logger)
         
         # Run Telegram client in the background
-        # We use asyncio.create_task to run it concurrently with Flet
         asyncio.create_task(telegram_service.start())
+        
+        # Initialize Alerts Service (Map)
+        def on_alerts_update(states):
+            # This runs in a thread or async context depending on implementation
+            # AppLayout.update_map calls map.update_alerts -> updates UI
+            # Flet requires running UI updates on loop?
+            # Since requests are blocking in thread, we call this on thread.
+            # But MapComponent modifies controls. `image_control.update()` needs to happen.
+            # Page is thread-safe.
+            layout.update_map(states)
+            
+        alerts_service = AlertsService(on_alerts_update, logger=logger)
+        asyncio.create_task(alerts_service.start_polling())
+        
     else:
         layout.add_news(
             "ПОМИЛКА НАЛАШТУВАННЯ", 

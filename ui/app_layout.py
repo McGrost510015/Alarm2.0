@@ -3,6 +3,7 @@ import json
 import os
 from ui.components.news_card import NewsCard
 from ui.components.developer_console import DeveloperConsole
+from ui.components.map_component import MapComponent
 
 HISTORY_FILE = "history.json"
 
@@ -12,21 +13,26 @@ class AppLayout(ft.Row):
         self.page = page
         self.news_list_container = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
         
-        # If on_clear_history is passed, we use it, otherwise we default to internal method
-        # But DeveloperConsole expects a callback.
-        # We can pass `self.clear_history` to DeveloperConsole.
-        # The main.py passes a lambda that calls `layout.clear_history`.
-        # So we can just ignore `on_clear_history` argument if we want or use it?
-        # Let's align with main.py: main passes `lambda e: layout.clear_history(e)`
-        # So `on_clear_history` IS `self.clear_history` wrapped.
-        
         self.console = DeveloperConsole(on_clear_history_click=on_clear_history)
+        self.map = MapComponent()
+        
+        # Center Content: Map (initially visible? Request said: "Center if dev mode, Right if not")
+        # Actually request said: "central part if developer mode is enabled, or right part if disabled"
+        # Since I'm using Row:
+        # [News] [Map] [Console]
+        # If Dev Mode OFF: Console hidden. [News] [Map] (Map on right)
+        # If Dev Mode ON: Console visible. [News] [Map] [Console] (Map in center)
         
         self.controls = [
-            # Main Content
+            # Main Content (News)
             ft.Container(
                 content=self.news_list_container,
-                expand=True
+                expand=2 # Less weight than map
+            ),
+            # Map
+            ft.Container(
+                content=self.map,
+                expand=3 # More weight
             ),
             # Console (Right Side)
             self.console
@@ -35,6 +41,9 @@ class AppLayout(ft.Row):
         self.vertical_alignment = ft.CrossAxisAlignment.START
         
         self.load_history()
+
+    def update_map(self, states):
+        self.map.update_alerts(states)
 
     def add_news(self, title, text, footer, time, bg_color, save=True):
         # Add new card to the top
