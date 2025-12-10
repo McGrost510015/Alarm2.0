@@ -19,7 +19,9 @@ async def main(page: ft.Page):
     }
     page.title = "Varta AI"
     page.theme_mode = ft.ThemeMode.DARK
-    page.padding = 20
+    page.title = "Varta AI"
+    page.theme_mode = ft.ThemeMode.DARK
+    page.padding = 0 # Remove page padding for full-screen gradient
     page.window.width = 1200 # Increased width
     page.window.height = 800
     page.window.min_width = 1350
@@ -101,7 +103,7 @@ async def main(page: ft.Page):
     # --- Header ---
     header_content = ft.Row(
         controls=[
-            ft.Icon(ft.Icons.SHIELD_MOON, color=ft.Colors.BLUE_400, size=30),
+            ft.Icon(ft.Icons.INFO, color=ft.Colors.BLUE_400, size=30),
             ft.Row(
                 controls=[
                     ft.Text("Varta", size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
@@ -175,14 +177,29 @@ async def main(page: ft.Page):
 
     layout = AppLayout(page, on_clear_history=lambda e: layout.clear_history(e), on_pulse_click=on_pulse)
     
-    page.add(
-        header,
-        layout
+    # Main Container with Gradient
+    main_container = ft.Container(
+        content=ft.Column(
+            controls=[
+                header,
+                layout
+            ],
+            spacing=20,
+            expand=True
+        ),
+        gradient=ft.LinearGradient(
+            begin=ft.alignment.top_center,
+            end=ft.alignment.bottom_center,
+            colors=[ft.Colors.BLUE_GREY_900, ft.Colors.BLACK],
+        ),
+        expand=True,
+        padding=20
     )
+    
+    page.add(main_container)
 
     # Callback to update UI from Telegram
-    # Callback to update UI from Telegram
-    def on_telegram_message(summary, original_text, level, regions, time, footer):
+    def on_telegram_message(summary, original_text, level, regions, time, footer, status="normal"):
         # Get User Region from cached settings (AVOIDS TIMEOUT)
         user_region = user_settings.get("region")
         
@@ -200,35 +217,43 @@ async def main(page: ft.Page):
         title = "ПОВІДОМЛЕННЯ"
         bg_color = ft.Colors.BLUE_GREY_700
         
-        # LOGIC:
-        # Red Card IF: (Region Match AND Level != LOW) OR (Level == CRITICAL)
-        
-        is_danger = False
-        if level == "CRITICAL":
-            is_danger = True
-        elif is_region_match and level != "LOW":
-            is_danger = True
+        if status == "ignore":
+            title = "IGNORED"
+            bg_color = ft.Colors.GREY_700
+            # We can also modify summary/text if needed, but requirements said:
+            # "summary text on front, original_text on back. Grey color."
+            # That's already handled by passing arguments.
             
-        if is_danger:
-            title = "ВЕЛИКА НЕБЕЗПЕКА"
-            bg_color = ft.Colors.RED_700
         else:
-            # Standard Colors based on Level
-            if level == "LOW":
-                title = "ІНФОРМАЦІЯ"
-                bg_color = ft.Colors.GREEN_700
-            elif level == "MEDIUM":
-                title = "УВАГА"
-                bg_color = ft.Colors.YELLOW_700
-            elif level == "HIGH":
-                title = "НЕБЕЗПЕКА"
-                bg_color = ft.Colors.ORANGE_700
+            # LOGIC:
+            # Red Card IF: (Region Match AND Level != LOW) OR (Level == CRITICAL)
+            
+            is_danger = False
+            if level == "CRITICAL":
+                is_danger = True
+            elif is_region_match and level != "LOW":
+                is_danger = True
+                
+            if is_danger:
+                title = "ВЕЛИКА НЕБЕЗПЕКА"
+                bg_color = ft.Colors.RED_700
             else:
-                title = "ПОВІДОМЛЕННЯ"
-                bg_color = ft.Colors.BLUE_GREY_700
+                # Standard Colors based on Level
+                if level == "LOW":
+                    title = "ІНФОРМАЦІЯ"
+                    bg_color = ft.Colors.GREEN_700
+                elif level == "MEDIUM":
+                    title = "УВАГА"
+                    bg_color = ft.Colors.YELLOW_700
+                elif level == "HIGH":
+                    title = "НЕБЕЗПЕКА"
+                    bg_color = ft.Colors.ORANGE_700
+                else:
+                    title = "ПОВІДОМЛЕННЯ"
+                    bg_color = ft.Colors.BLUE_GREY_700
 
         # Add News Card
-        layout.add_news(title, summary, footer, time, bg_color, original_text=original_text)
+        layout.add_news(title, summary, footer, time, bg_color, original_text=original_text, regions=regions, status=status)
         
     def logger(msg):
         layout.log(msg)

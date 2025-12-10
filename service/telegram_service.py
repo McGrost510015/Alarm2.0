@@ -121,12 +121,21 @@ class TelegramService:
         # 2. Check status
         status = data.get("status", "").lower()
         if status == "ignore":
-            self.log("Status is ignore. Skipping.")
-            return
+            self.log("Status is ignore. Passing to UI for potential display.")
+            # We continue instead of returning
         
         # 3. Determine Level, Region, and Original Text
         level = data.get("level", "LOW")
-        regions = data.get("regions", []) # List of strings
+        
+        # Support both 'regions' list and legacy/alternative 'region' string
+        regions = data.get("regions")
+        if not regions:
+             single_region = data.get("region")
+             if single_region and str(single_region).lower() != "none":
+                 regions = [single_region]
+             else:
+                 regions = []
+                 
         original_text = data.get("original_text", "")
         summary = data.get("summary", "")
         
@@ -138,21 +147,9 @@ class TelegramService:
         
         # Callback to UI
         if self.update_callback:
-            # New Signature: callback(title, summary, footer, time, bg_color, original_text, level, regions)
-            # Wait, main.py expects (title, text, footer, time, bg_color) currently.
-            # I should update main.py FIRST or pass a dict/object.
-            # Or just pass raw data and let main.py decide title/color.
-            
-            # Let's change the callback contract to:
-            # on_message(data_dict) or on_message(summary, original_text, level, regions, time_str, date_str)
-            
-            # To minimize breakage during refactor, I will change main.py's handler first?
-            # No, I can't change main.py signature in the same atomic step easily if I strictly follow file-by-file.
-            # But I can modify the arguments passed here.
-            
-            # Let's pass: 
-            # callback(summary, original_text, level, regions, formatted_time, footer_text)
-            self.update_callback(summary, original_text, level, regions, formatted_time, footer_text)
+            # Modified Signature to include status:
+            # callback(summary, original_text, level, regions, formatted_time, footer_text, status)
+            self.update_callback(summary, original_text, level, regions, formatted_time, footer_text, status)
 
     async def connect(self):
         await self.client.start()

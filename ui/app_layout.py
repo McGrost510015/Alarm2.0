@@ -13,7 +13,13 @@ class AppLayout(ft.Row):
         self.page = page
         self.news_list_container = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True, spacing=10)
         
-        self.console = DeveloperConsole(on_clear_history_click=on_clear_history, on_pulse_click=on_pulse_click)
+        self.show_ignored_news = False
+
+        self.console = DeveloperConsole(
+            on_clear_history_click=on_clear_history, 
+            on_pulse_click=on_pulse_click,
+            on_toggle_ignored_click=self.toggle_ignored_view
+        )
         self.map = MapComponent()
         
         # Center Content: Map (initially visible? Request said: "Center if dev mode, Right if not")
@@ -43,15 +49,46 @@ class AppLayout(ft.Row):
         
         self.load_history()
 
+    def toggle_ignored_view(self, show):
+        self.show_ignored_news = show
+        try:
+            self.console.log(f"Ignored News Visibility: {show}")
+        except:
+            pass
+            
+        for control in self.news_list_container.controls:
+            if isinstance(control, NewsCard) and control.data == "ignore":
+                control.visible = show
+        self.page.update()
+
     def update_map(self, states):
         self.map.update_alerts(states)
 
-    def add_news(self, title, text, footer, time, bg_color, original_text=None, save=True, animate=True):
+    def highlight_regions(self, region_names):
+        self.map.set_highlights(region_names)
+        
+    def add_news(self, title, text, footer, time, bg_color, original_text=None, save=True, animate=True, regions=None, status="normal"):
         # Add new card to the top
         # For new items (save=True), we animate. For history (usually save=False), we can skip animation or fast forward.
         # But user wants smooth appearance for NEW news.
         
-        card = NewsCard(title, text, footer, time, bg_color, original_text=original_text, animate_entrance=animate)
+        is_ignored = (status == "ignore")
+        visible = True
+        if is_ignored:
+            visible = self.show_ignored_news
+            
+        card = NewsCard(
+            title, text, footer, time, bg_color, 
+            original_text=original_text, 
+            animate_entrance=animate,
+            regions=regions, 
+            on_highlight=self.highlight_regions
+        )
+        
+        if is_ignored:
+            card.data = "ignore"
+            card.visible = visible
+            
         self.news_list_container.controls.insert(0, card)
         
         # Update page to render the card in its initial (offset/transparent) state
@@ -66,7 +103,9 @@ class AppLayout(ft.Row):
                 "footer": footer,
                 "time": time,
                 "bg_color": bg_color,
-                "original_text": original_text
+                "original_text": original_text,
+                "regions": regions,
+                "status": status
             })
 
     def save_news_item(self, item):
@@ -110,7 +149,9 @@ class AppLayout(ft.Row):
                     item.get("bg_color"),
                     original_text=item.get("original_text"),
                     save=False,
-                    animate=False
+                    animate=False,
+                    regions=item.get("regions"),
+                    status=item.get("status", "normal")
                 )
         except Exception as e:
             self.log(f"Error loading history: {e}")

@@ -50,6 +50,9 @@ class MapComponent(ft.Container):
         # But previous issue was visibility. Let's keep expand=True on Component itself.
         self.expand = True
         
+        self.active_alert_ids = set()
+        self.highlighted_ids = set()
+        
         # Load initial SVG
         self.load_svg()
 
@@ -98,22 +101,126 @@ class MapComponent(ft.Container):
             return
 
         # active_ids = set of IDs that are alerts
-        active_ids = set()
+        self.active_alert_ids = set()
         for region_name, data in states.items():
             if data.get("alertnow"): # Boolean true
                 svg_id = REGION_MAPPING.get(region_name)
                 if svg_id:
-                    active_ids.add(svg_id)
+                    self.active_alert_ids.add(svg_id)
         
+        self.render_map_state()
+
+    # Common City/Short names to Full Region Names mapping
+    CITY_TO_REGION_MAPPING = {
+        "Вінниця": "Вінницька область",
+        "Дніпро": "Дніпропетровська область",
+        "Донецьк": "Донецька область",
+        "Житомир": "Житомирська область",
+        "Запоріжжя": "Запорізька область",
+        "Івано-Франківськ": "Івано-Франківська область",
+        "Київ": "м. Київ", # Or Київська область depending on context, usually City for alerts
+        "Кропивницький": "Кіровоградська область",
+        "Луганськ": "Луганська область",
+        "Луцьк": "Волинська область",
+        "Львів": "Львівська область",
+        "Миколаїв": "Миколаївська область",
+        "Одеса": "Одеська область",
+        "Полтава": "Полтавська область",
+        "Рівне": "Рівненська область",
+        "Суми": "Сумська область",
+        "Тернопіль": "Тернопільська область",
+        "Ужгород": "Закарпатська область",
+        "Харків": "Харківська область",
+        "Херсон": "Херсонська область",
+        "Хмельницький": "Хмельницька область",
+        "Черкаси": "Черкаська область",
+        "Чернівці": "Чернівецька область",
+        "Чернігів": "Чернігівська область",
+        "Сімферополь": "Автономна Республіка Крим",
+        "Крим": "Автономна Республіка Крим",
+        "Севастополь": "м. Севастополь"
+    }
+
+    def set_highlights(self, region_names):
+        """Highlight specific regions (e.g. on hover) without changing alert state"""
+        if not self.root:
+            return
+            
+        new_highlights = set()
+        if region_names:
+            if isinstance(region_names, str):
+                region_names = [region_names]
+                
+            for name in region_names:
+                name = name.strip()
+                svg_id = None
+                
+                # 1. Direct Match
+                svg_id = REGION_MAPPING.get(name)
+                
+                # 2. City Mapping (Robust)
+                if not svg_id:
+                    full_name = self.CITY_TO_REGION_MAPPING.get(name)
+                    if full_name:
+                        svg_id = REGION_MAPPING.get(full_name)
+                        
+                # 3. "Область" suffix check (e.g. input "Вінницька" -> "Вінницька область")
+                if not svg_id and "область" not in name:
+                     potential_name = f"{name} область"
+                     svg_id = REGION_MAPPING.get(potential_name)
+
+                # 4. Partial / Case-insensitive Search
+                if not svg_id:
+                     name_lower = name.lower()
+                     for key, val in REGION_MAPPING.items():
+                         if name_lower in key.lower(): 
+                             svg_id = val
+                             break
+
+                if svg_id:
+                    new_highlights.add(svg_id)
+                else:
+                    print(f"DEBUG: Could not map region name '{name}' to SVG ID")
+        
+        print(f"DEBUG: Highlight IDs: {new_highlights}")
+        if self.highlighted_ids != new_highlights:
+            self.highlighted_ids = new_highlights
+            self.render_map_state()
+
+    def render_map_state(self):
         # Iterate all paths and update fill
         for elem in self.root.iter():
             if elem.tag.endswith('path'):
                 elem_id = elem.get("id")
                 if elem_id:
-                    if elem_id in active_ids:
-                        elem.set("fill", "#CC0000") # Alert Color (Red)
-                    else:
-                        elem.set("fill", "#2D2D2D") # Neutral Dark Grey
+                    # Priority: Highlight > Alert > Normal
+                    # Actually, we might want to show Alert color BUT highlighted (brighter)?
+                    # User asked for "Highlight regions on hover".
+                    
+                    fill_color = "#2D2D2D" # Default
+                    stroke_color = "#606060"
+                    stroke_width = "1"
+                    
+                    is_alert = elem_id in self.active_alert_ids
+                    is_highlight = elem_id in self.highlighted_ids
+                    
+                    if is_alert:
+                        fill_color = "#CC0000" # Red
+                        
+                    if is_highlight:
+                        # If it's an alert, make it brighter red? or White overlay?
+                        if is_alert:
+                             fill_color = "#FF3333" # Brighter Red
+                             stroke_color = "#FFFFFF"
+                             stroke_width = "2"
+                        else:
+                             fill_color = "#707070" # Much Lighter Grey (Highlight) for visibility
+                             stroke_color = "#FFFFFF"
+                             stroke_width = "1.5"
+                             
+                    elem.set("fill", fill_color)
+                    elem.set("stroke", stroke_color)
+                    elem.set("stroke-width", stroke_width)
 
         self.update_map_image()
 
