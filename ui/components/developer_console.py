@@ -2,9 +2,10 @@ import flet as ft
 from datetime import datetime
 
 class DeveloperConsole(ft.Container):
-    def __init__(self, on_clear_history_click):
+    def __init__(self, on_clear_history_click, on_pulse_click=None):
         super().__init__()
         self.on_clear_history_click = on_clear_history_click
+        self.on_pulse_click = on_pulse_click
         
         self.log_list = ft.ListView(
             expand=True,
@@ -23,14 +24,27 @@ class DeveloperConsole(ft.Container):
             ),
             on_click=self.on_clear_history_click
         )
+
+        self.pulse_btn = ft.ElevatedButton(
+            "Пульс",
+            icon=ft.Icons.MONITOR_HEART,
+            style=ft.ButtonStyle(
+                color=ft.Colors.WHITE,
+                bgcolor=ft.Colors.BLUE_700,
+                shape=ft.RoundedRectangleBorder(radius=5)
+            ),
+            on_click=self.on_pulse_click
+        )
         
         self.content = ft.Column(
             controls=[
                 ft.Text("DEVELOPER CONSOLE", color=ft.Colors.GREEN, weight=ft.FontWeight.BOLD),
                 ft.Divider(color=ft.Colors.GREEN_900),
                 self.log_list,
-                ft.Row([self.clear_history_btn], alignment=ft.MainAxisAlignment.CENTER)
-            ]
+                ft.Row([self.clear_history_btn, self.pulse_btn], alignment=ft.MainAxisAlignment.CENTER)
+            ],
+            alignment=ft.MainAxisAlignment.START,
+            expand=True
         )
         
         self.width = 400

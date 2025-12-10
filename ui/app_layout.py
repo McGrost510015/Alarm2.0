@@ -8,12 +8,12 @@ from ui.components.map_component import MapComponent
 HISTORY_FILE = "history.json"
 
 class AppLayout(ft.Row):
-    def __init__(self, page: ft.Page, on_clear_history=None):
+    def __init__(self, page: ft.Page, on_clear_history=None, on_pulse_click=None):
         super().__init__()
         self.page = page
-        self.news_list_container = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
+        self.news_list_container = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True, spacing=10)
         
-        self.console = DeveloperConsole(on_clear_history_click=on_clear_history)
+        self.console = DeveloperConsole(on_clear_history_click=on_clear_history, on_pulse_click=on_pulse_click)
         self.map = MapComponent()
         
         # Center Content: Map (initially visible? Request said: "Center if dev mode, Right if not")
@@ -27,7 +27,8 @@ class AppLayout(ft.Row):
             # Main Content (News)
             ft.Container(
                 content=self.news_list_container,
-                expand=2 # Less weight than map
+                expand=2, # Less weight than map
+                padding=10
             ),
             # Map
             ft.Container(
@@ -45,10 +46,18 @@ class AppLayout(ft.Row):
     def update_map(self, states):
         self.map.update_alerts(states)
 
-    def add_news(self, title, text, footer, time, bg_color, save=True):
+    def add_news(self, title, text, footer, time, bg_color, save=True, animate=True):
         # Add new card to the top
-        card = NewsCard(title, text, footer, time, bg_color)
+        # For new items (save=True), we animate. For history (usually save=False), we can skip animation or fast forward.
+        # But user wants smooth appearance for NEW news.
+        
+        card = NewsCard(title, text, footer, time, bg_color, animate_entrance=animate)
         self.news_list_container.controls.insert(0, card)
+        
+        # Update page to render the card in its initial (offset/transparent) state
+        self.page.update()
+        
+        # dynamic animation handled in did_mount via threading
         
         if save:
             self.save_news_item({
@@ -58,8 +67,6 @@ class AppLayout(ft.Row):
                 "time": time,
                 "bg_color": bg_color
             })
-            
-        self.page.update()
 
     def save_news_item(self, item):
         history = []
@@ -100,7 +107,8 @@ class AppLayout(ft.Row):
                     item.get("footer"),
                     item.get("time"),
                     item.get("bg_color"),
-                    save=False
+                    save=False,
+                    animate=False
                 )
         except Exception as e:
             self.log(f"Error loading history: {e}")

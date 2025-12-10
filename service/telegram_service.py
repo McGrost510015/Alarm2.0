@@ -51,23 +51,40 @@ class TelegramService:
 
         # Catch up on missed messages
         if self.last_message_id:
-            self.log(f"Checking for missed messages since ID {self.last_message_id}...")
-            try:
-                # min_id excludes the message with that ID, so we get only newer ones
-                # limit=20 to avoid fetching too many if gap is huge
-                messages = await self.client.get_messages(self.channel_username, min_id=self.last_message_id, limit=20, reverse=True)
-                if messages:
-                    self.log(f"Found {len(messages)} missed messages.")
-                    for message in messages:
-                        await self.process_message(message)
-                else:
-                    self.log("No missed messages found.")
-            except Exception as e:
-                self.log(f"Error fetching missed messages: {e}")
+            await self.check_missed_messages()
         else:
             self.log("First run or no state found. Listening for new messages only.")
+
             # We could fetch the latest message ID here to set looking forward, 
             # but getting the next new message will set the state anyway.
+
+    async def check_connection(self):
+        if await self.client.is_user_authorized():
+            self.log("З'єднання з Telegram: ОК")
+            return True
+        else:
+            self.log("З'єднання з Telegram: НЕ АВТОРИЗОВАНО")
+            return False
+
+    async def check_missed_messages(self):
+        if not self.last_message_id:
+            self.log("Немає ID останнього повідомлення для перевірки.")
+            return
+
+        self.log(f"Перевірка пропущених повідомлень починаючи з ID {self.last_message_id}...")
+        try:
+            # min_id excludes the message with that ID, so we get only newer ones
+            # limit=20 to avoid fetching too many if gap is huge
+            messages = await self.client.get_messages(self.channel_username, min_id=self.last_message_id, limit=20, reverse=True)
+            if messages:
+                self.log(f"Знайдено {len(messages)} пропущених повідомлень.")
+                for message in messages:
+                    await self.process_message(message)
+            else:
+                self.log("Пропущених повідомлень не знайдено.")
+        except Exception as e:
+            self.log(f"Помилка отримання пропущених повідомлень: {e}")
+
 
         @self.client.on(events.NewMessage(chats=self.channel_username))
         async def handler(event):

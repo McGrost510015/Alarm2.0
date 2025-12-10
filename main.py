@@ -10,11 +10,16 @@ import config
 from ui.settings_dialog import SettingsDialog
 
 async def main(page: ft.Page):
-    page.title = "Ukraine News Alert AI"
+    telegram_service = None
+    alerts_service = None
+    page.title = "Varta AI"
     page.theme_mode = ft.ThemeMode.DARK
     page.padding = 20
-    page.window_width = 1200 # Increased width
-    page.window_height = 800
+    page.window.width = 1200 # Increased width
+    page.window.height = 800
+    page.window.min_width = 1350
+    page.window.min_height = 700
+    page.update()
 
     def on_dev_mode_change(enabled):
         layout.toggle_console(visible=enabled)
@@ -22,51 +27,141 @@ async def main(page: ft.Page):
 
     settings_dialog = SettingsDialog(page, on_dev_mode_change)
 
-    # Header
-    header = ft.Row(
+    # --- Info Tooltip (Overlay) ---
+    info_tooltip = ft.Container(
+        content=ft.Column(
+            controls=[
+                ft.Text("Varta AI — твій персональний аналітик безпеки.", weight=ft.FontWeight.BOLD, size=14),
+                ft.Text("Програма моніторить Telegram-канали, відсіює інфошум та сповіщає про загрози.", size=13),
+                ft.Divider(color=ft.Colors.GREY_700),
+                ft.Row(
+                    controls=[
+                        ft.Icon(ft.Icons.WARNING_AMBER, color=ft.Colors.ORANGE_400, size=20),
+                        ft.Text("Важливо:", color=ft.Colors.ORANGE_400, weight=ft.FontWeight.BOLD, size=13),
+                    ],
+                    spacing=5
+                ),
+                ft.Text(
+                    "Аналіз виконується штучним інтелектом, тому можливі похибки. Програма є виключно допоміжним інструментом.", 
+                    size=12, color=ft.Colors.GREY_400
+                ),
+                ft.Text(
+                    "Автор залишає за собою право не нести відповідальності за недостовірність інформації. Завжди орієнтуйтеся на офіційні сигнали тривоги.",
+                    size=12, color=ft.Colors.GREY_400, italic=True
+                )
+            ],
+            spacing=5,
+        ),
+        padding=15,
+        width=400,
+        bgcolor=ft.Colors.GREY_900,
+        border=ft.border.all(1, ft.Colors.BLUE_900),
+        border_radius=10,
+        opacity=0,
+        animate_opacity=300,
+        # top=60,  <-- Moved to wrapper
+        # left=20, <-- Moved to wrapper
+        shadow=ft.BoxShadow(
+            blur_radius=15,
+            color=ft.Colors.BLACK,
+            offset=ft.Offset(0, 5)
+        ),
+    )
+    
+    # Wrap in TransparentPointer so it doesn't block mouse events for elements below (like news cards)
+    # properly handling the "ghost" nature of the tooltip.
+    info_tooltip_wrapper = ft.TransparentPointer(
+        content=info_tooltip,
+        top=60, 
+        left=20
+    )
+    
+    page.overlay.append(info_tooltip_wrapper)
+
+    def show_tooltip(e):
+        info_tooltip.opacity = 1
+        info_tooltip.update()
+
+    def hide_tooltip(e):
+        info_tooltip.opacity = 0
+        info_tooltip.update()
+
+    # --- Header ---
+    header_content = ft.Row(
         controls=[
             ft.Icon(ft.Icons.SHIELD_MOON, color=ft.Colors.BLUE_400, size=30),
-            ft.Text("News Shield AI", size=24, weight=ft.FontWeight.BOLD),
-            ft.Container(expand=True),
-            ft.IconButton(icon=ft.Icons.SETTINGS, icon_color=ft.Colors.BLUE_400, on_click=lambda _: settings_dialog.show())
+            ft.Row(
+                controls=[
+                    ft.Text("Varta", size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
+                    ft.Text("AI", size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.ORANGE),
+                ],
+                spacing=2
+            ),
         ],
         alignment=ft.MainAxisAlignment.START,
     )
 
-    layout = AppLayout(page, on_clear_history=None) # We need to define clear history logic inside layout or pass here
-    # Since AppLayout handles clear_history mostly internally or we need to pass a dummy if the logic is inside AppLayout as implemented...
-    # Actually AppLayout implementation above takes `on_clear_history`, let's verify AppLayout again. 
-    # AppLayout calls self.news_list_container.controls.clear(). It doesn't need external callback necessarily but I defined it in constructor.
-    # Let's link it to AppLayout.clear_history method if needed or just pass a method that does logging.
     
-    # Wait, AppLayout implementation I wrote takes `on_clear_history`.
-    # `self.console = DeveloperConsole(on_clear_history_click=on_clear_history)`
-    # And `DeveloperConsole` calls it.
-    # So `layout.clear_history` is the method I wrote in `AppLayout`. 
-    # But `DeveloperConsole` is initialized inside `AppLayout`. 
-    # Ah, circle dependency potentially if I am not careful. 
+    def on_header_hover(e):
+        if e.data == "true":
+            show_tooltip(e)
+        else:
+            hide_tooltip(e)
+
+    header_interactive = ft.Container(
+        content=header_content,
+        on_hover=on_header_hover
+    )
+
+    settings_btn = ft.IconButton(icon=ft.Icons.SETTINGS, icon_color=ft.Colors.BLUE_400, on_click=lambda _: settings_dialog.show())
     
-    # Let's fix AppLayout initialization first in main. 
-    
-    # Actually, looking at AppLayout I wrote:
-    # class AppLayout(ft.Row):
-    #   def __init__(self, page: ft.Page, on_clear_history):
-    #       ...
-    #       self.console = DeveloperConsole(on_clear_history_click=on_clear_history)
-    
-    # So main.py needs to pass a function that clears history. 
-    # But `layout` object is what holds the history. 
-    # So we need to create `layout` first, THEN define the callback? No, that's chicken and egg.
-    
-    # Better approach: Pass a lambda that calls a method on layout, but layout isn't defined yet.
-    # Or make `AppLayout` handle the clearing internally without passing it in.
-    
-    # Refactor AppLayout in main to handle this? 
-    # I will modify AppLayout in next step to not require `on_clear_history` in init, but handle it internally.
-    # For now, let's just pass a placeholder and re-inject it, or better, pass `lambda e: layout.clear_history(e)`.
-    # Flet allows this because lambda is evaluated when clicked.
-    
-    layout = AppLayout(page, on_clear_history=lambda e: layout.clear_history(e))
+    header = ft.Row(
+        controls=[
+            header_interactive,
+            ft.Container(expand=True),
+            settings_btn
+        ],
+        alignment=ft.MainAxisAlignment.START,
+    )
+
+    async def on_pulse(e):
+        layout.log("--- ПЕРЕВІРКА ПУЛЬСУ СИСТЕМИ ---")
+        
+        # 1. Telegram Connection
+        layout.log("1. Перевірка з'єднання з Telegram...")
+        if telegram_service:
+            connected = await telegram_service.check_connection()
+            if not connected:
+                layout.log("Увага: Telegram не авторизовано/не підключено.")
+        else:
+            layout.log("Telegram сервіс: НЕ ЗАПУЩЕНО")
+            
+        await asyncio.sleep(0.5)
+
+        # 2. Reading Status (Inferred from presence of service)
+        layout.log("2. Статус читача...")
+        if telegram_service:
+             layout.log(f"Слухаємо канал: {telegram_service.channel_username}")
+             
+        await asyncio.sleep(0.5)
+        
+        # 3. Missed Messages
+        layout.log("3. Перевірка пропущених повідомлень...")
+        if telegram_service:
+            await telegram_service.check_missed_messages()
+
+        await asyncio.sleep(0.5)
+
+        # 4. Alerts Data
+        layout.log("4. Оновлення даних про тривоги...")
+        if alerts_service:
+            await alerts_service.force_refresh()
+        else:
+            layout.log("Сервіс тривог: НЕ ЗАПУЩЕНО")
+            
+        layout.log("--- ПЕРЕВІРКУ ЗАВЕРШЕНО ---")
+
+    layout = AppLayout(page, on_clear_history=lambda e: layout.clear_history(e), on_pulse_click=on_pulse)
     
     page.add(
         header,
